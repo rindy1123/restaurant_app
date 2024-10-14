@@ -7,6 +7,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use tokio_postgres::NoTls;
 
 #[derive(Serialize)]
 struct OrderItem {
@@ -53,7 +54,18 @@ async fn delete_order_item(Path((table_id, order_item_id)): Path<(u64, u64)>) ->
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), tokio_postgres::Error> {
+    let (_client, connection) = tokio_postgres::connect(
+        "host=postgres user=postgres password=postgres dbname=restaurant_app",
+        NoTls,
+    )
+    .await?;
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
+
     let app = Router::new()
         .route("/tables/:table_id/order_items", get(get_order_items))
         .route(
@@ -68,4 +80,5 @@ async fn main() {
     // TODO: Get an address from environment variables
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
+    Ok(())
 }

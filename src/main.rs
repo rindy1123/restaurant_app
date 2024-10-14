@@ -53,19 +53,30 @@ async fn delete_order_item(Path((table_id, order_item_id)): Path<(u64, u64)>) ->
     StatusCode::NO_CONTENT
 }
 
+mod embedded {
+    use refinery::embed_migrations;
+    embed_migrations!("./migrations");
+}
+
 #[tokio::main]
-async fn main() -> Result<(), tokio_postgres::Error> {
-    let (_client, connection) = tokio_postgres::connect(
+async fn main() {
+    // Database setup
+    // TODO: Get db info from environment variables
+    let (mut client, connection) = tokio_postgres::connect(
         "host=postgres user=postgres password=postgres dbname=restaurant_app",
         NoTls,
     )
-    .await?;
+    .await
+    .unwrap();
     tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
-        }
+        connection.await.unwrap();
     });
+    embedded::migrations::runner()
+        .run_async(&mut client)
+        .await
+        .unwrap();
 
+    // Web server setup
     let app = Router::new()
         .route("/tables/:table_id/order_items", get(get_order_items))
         .route(
@@ -80,5 +91,4 @@ async fn main() -> Result<(), tokio_postgres::Error> {
     // TODO: Get an address from environment variables
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
-    Ok(())
 }

@@ -1,6 +1,6 @@
 #![warn(clippy::all)]
 
-use std::ops::DerefMut;
+use std::{borrow::Borrow, ops::DerefMut};
 
 use axum::{
     extract::{Path, State},
@@ -11,7 +11,7 @@ use axum::{
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
 use serde::{Deserialize, Serialize};
-use tokio_postgres::NoTls;
+use tokio_postgres::{NoTls, Row};
 
 #[derive(Serialize)]
 struct OrderItem {
@@ -33,6 +33,21 @@ struct OrderPostParams {
 
 type ConnectionPool = Pool<PostgresConnectionManager<NoTls>>;
 
+impl From<&Row> for OrderItem {
+    fn from(row: &Row) -> Self {
+        let id: i32 = row.get("id");
+        let table_number: i32 = row.get("table_number");
+        let menu_item_name: String = row.get("menu_item_name");
+        let prep_time_minutes: i32 = row.get("prep_time_minutes");
+        OrderItem {
+            id,
+            table_number,
+            menu_item_name,
+            prep_time_minutes,
+        }
+    }
+}
+
 async fn get_order_items(
     Path(table_id): Path<i32>,
     State(pool): State<ConnectionPool>,
@@ -53,37 +68,33 @@ async fn get_order_items(
             eprintln!("Failed to query table_order_items: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    let items = rows
-        .iter()
-        .map(|row| {
-            let id: i32 = row.get("id");
-            let table_number: i32 = row.get("table_number");
-            let menu_item_name: String = row.get("menu_item_name");
-            let prep_time_minutes: i32 = row.get("prep_time_minutes");
-            OrderItem {
-                id,
-                table_number,
-                menu_item_name,
-                prep_time_minutes,
-            }
-        })
-        .collect();
+    let items = rows.iter().map(|row| row.into()).collect();
     Ok(Json(OrderItems { items }))
 }
 
-async fn get_order_item(Path((table_id, order_item_id)): Path<(i32, i32)>) -> Json<OrderItem> {
-    println!("{}", order_item_id);
-    let id = order_item_id;
-    let table_number = table_id;
-    let menu_item_name = "Pizza".to_string();
-    let prep_time_minutes = 10;
-    let item = OrderItem {
-        id,
-        table_number,
-        menu_item_name,
-        prep_time_minutes,
-    };
-    Json(item)
+async fn get_order_item(
+    Path((table_id, order_item_id)): Path<(i32, i32)>,
+    State(pool): State<ConnectionPool>,
+) -> Result<Json<OrderItem>, StatusCode> {
+    let conn = pool.get().await.unwrap();
+    let order_item: OrderItem = conn
+        .query_one(
+            r#"
+                SELECT toi.*, t.table_number, mi.name menu_item_name FROM table_order_items toi
+                INNER JOIN menu_items mi ON toi.menu_item_id = mi.id
+                INNER JOIN tables t ON toi.table_id = t.id
+                WHERE table_id = $1 AND toi.id = $2;
+            "#,
+            &[&table_id, &order_item_id],
+        )
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to query table_order_items: {}", e);
+            StatusCode::NOT_FOUND
+        })?
+        .borrow()
+        .into();
+    Ok(Json(order_item))
 }
 
 async fn create_order(

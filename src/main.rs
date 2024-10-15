@@ -101,7 +101,7 @@ async fn create_order(
     Path(table_id): Path<i32>,
     State(pool): State<ConnectionPool>,
     Json(params): Json<OrderPostParams>,
-) -> StatusCode {
+) -> Result<StatusCode, StatusCode> {
     let value_placeholders = params
         .menu_item_ids
         .iter()
@@ -123,16 +123,35 @@ async fn create_order(
         .flat_map(|id| vec![&table_id, id, &10]) // TODO: make prep_time_minutes random
         .collect::<Vec<&i32>>();
     let conn = pool.get().await.unwrap();
-    if let Err(e) = conn.execute_raw(&insert_statement, values).await {
-        eprintln!("Failed to insert into table_order_items: {}", e);
-        return StatusCode::INTERNAL_SERVER_ERROR;
-    }
-    StatusCode::CREATED
+    conn.execute_raw(&insert_statement, values)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to insert into table_order_items: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    Ok(StatusCode::CREATED)
 }
 
-async fn delete_order_item(Path((table_id, order_item_id)): Path<(u64, u64)>) -> StatusCode {
-    println!("{table_id}/{order_item_id}");
-    StatusCode::NO_CONTENT
+async fn delete_order_item(
+    Path((table_id, order_item_id)): Path<(i32, i32)>,
+    State(pool): State<ConnectionPool>,
+) -> Result<StatusCode, StatusCode> {
+    let conn = pool.get().await.unwrap();
+    conn.query(
+        "SELECT 1 FROM table_order_items WHERE table_id = $1 AND id = $2",
+        &[&table_id, &order_item_id],
+    )
+    .await
+    .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let delete_statement = "DELETE FROM table_order_items WHERE table_id = $1 AND id = $2;";
+    conn.execute(delete_statement, &[&table_id, &order_item_id])
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to insert into table_order_items: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 mod embedded {

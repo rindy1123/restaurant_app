@@ -19,6 +19,7 @@ pub async fn get_connection_pool() -> ConnectionPool {
     Pool::builder().build(manager).await.unwrap()
 }
 
+/// Ref: [Refinery: deadpool](https://github.com/rust-db/refinery?tab=readme-ov-file#example-deadpool)
 pub async fn run_migrations(pool: &ConnectionPool) {
     let mut conn = pool.get().await.unwrap();
     let client = conn.deref_mut();

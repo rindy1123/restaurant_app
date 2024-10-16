@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use tokio_postgres::Row;
 
+/// Response for get_order_item
 #[derive(Serialize)]
 pub struct OrderItem {
     id: i32,
@@ -17,11 +18,13 @@ pub struct OrderItem {
     prep_time_minutes: i32,
 }
 
+/// Response for get_order_items
 #[derive(Serialize)]
 pub struct OrderItems {
     items: Vec<OrderItem>,
 }
 
+/// Request body for create_order
 #[derive(Deserialize)]
 pub struct OrderPostParams {
     menu_item_ids: Vec<i32>,
@@ -42,6 +45,9 @@ impl From<&Row> for OrderItem {
     }
 }
 
+// TODO: Mock db connections for tests
+
+/// Handles GET requests to `/tables/:table_id/order_items` and returns a list of order items for the table
 pub fn get_order_items() -> Router<ConnectionPool> {
     async fn handler(
         Path(table_id): Path<i32>,
@@ -70,6 +76,7 @@ pub fn get_order_items() -> Router<ConnectionPool> {
     Router::<ConnectionPool>::new().route("/tables/:table_id/order_items", get(handler))
 }
 
+/// Handles GET requests to `/tables/:table_id/order_items/:order_item_id` and returns a single order item
 pub fn get_order_item() -> Router<ConnectionPool> {
     async fn handler(
         Path((table_id, order_item_id)): Path<(i32, i32)>,
@@ -100,6 +107,7 @@ pub fn get_order_item() -> Router<ConnectionPool> {
         .route("/tables/:table_id/order_items/:order_item_id", get(handler))
 }
 
+/// Handles POST requests to `/tables/:table_id/orders` and creates a new order for the table
 pub fn create_order() -> Router<ConnectionPool> {
     async fn handler(
         Path(table_id): Path<i32>,
@@ -114,6 +122,8 @@ pub fn create_order() -> Router<ConnectionPool> {
             .into_iter()
             .collect::<Vec<String>>()
             .join(", ");
+        // If there are two menu_item_ids, the query will look like:
+        // INSERT INTO table_order_items (table_id, menu_item_id, prep_time_minutes) VALUES ($1, $2, $3), ($4, $5, $6);
         let insert_statement = format!(
             r#"
             INSERT INTO table_order_items (table_id, menu_item_id, prep_time_minutes) VALUES
@@ -139,12 +149,14 @@ pub fn create_order() -> Router<ConnectionPool> {
     Router::<ConnectionPool>::new().route("/tables/:table_id/orders", post(handler))
 }
 
+/// Handles DELETE requests to `/tables/:table_id/order_items/:order_item_id` and deletes an order item
 pub fn delete_order_item() -> Router<ConnectionPool> {
     async fn handler(
         Path((table_id, order_item_id)): Path<(i32, i32)>,
         State(pool): State<ConnectionPool>,
     ) -> Result<StatusCode, StatusCode> {
         let conn = pool.get().await.unwrap();
+        // Check if the order item exists
         conn.query_one(
             "SELECT 1 FROM table_order_items WHERE table_id = $1 AND id = $2",
             &[&table_id, &order_item_id],

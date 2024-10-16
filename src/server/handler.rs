@@ -5,6 +5,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use tokio_postgres::Row;
@@ -131,10 +132,11 @@ pub fn create_order() -> Router<ConnectionPool> {
         "#,
             value_placeholders
         );
+        let prep_time_minutes = get_random_prep_time_minutes();
         let values = params
             .menu_item_ids
             .iter()
-            .flat_map(|id| vec![&table_id, id, &10]) // TODO: make prep_time_minutes random
+            .flat_map(|id| vec![&table_id, id, &prep_time_minutes])
             .collect::<Vec<&i32>>();
         let conn = pool.get().await.unwrap();
         conn.execute_raw(&insert_statement, values)
@@ -178,4 +180,21 @@ pub fn delete_order_item() -> Router<ConnectionPool> {
         "/tables/:table_id/order_items/:order_item_id",
         delete(handler),
     )
+}
+
+/// Returns a random prep time between 5 and 15 minutes
+fn get_random_prep_time_minutes() -> i32 {
+    let mut rng = rand::thread_rng();
+    rng.gen_range(5..=15)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_random_prep_time_minutes() {
+        let prep_time = get_random_prep_time_minutes();
+        assert!(prep_time >= 5 && prep_time <= 15);
+    }
 }

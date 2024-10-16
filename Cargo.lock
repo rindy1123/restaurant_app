@@ -817,6 +817,7 @@ dependencies = [
  "axum",
  "bb8",
  "bb8-postgres",
+ "rand",
  "refinery",
  "serde",
  "tokio",

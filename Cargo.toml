@@ -12,3 +12,4 @@ tokio-postgres = "^0.7.12"
 refinery = { version = "^0.8.14", features = ["tokio-postgres"]}
 bb8 = "^0.8.5"
 bb8-postgres = "^0.8.1"
+rand = "^0.8.5"

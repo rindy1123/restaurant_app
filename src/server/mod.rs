@@ -12,5 +12,6 @@ pub async fn run(pool: ConnectionPool) {
         .with_state(pool);
     // TODO: Get an address from environment variables
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
+    println!("Listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
 }

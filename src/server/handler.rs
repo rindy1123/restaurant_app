@@ -54,6 +54,7 @@ pub fn get_order_items() -> Router<ConnectionPool> {
         Path(table_id): Path<i32>,
         State(pool): State<ConnectionPool>,
     ) -> Result<Json<OrderItems>, StatusCode> {
+        println!("GET: /tables/{}/order_items", table_id);
         let conn = pool.get().await.unwrap();
         let rows = conn
             .query(
@@ -83,6 +84,7 @@ pub fn get_order_item() -> Router<ConnectionPool> {
         Path((table_id, order_item_id)): Path<(i32, i32)>,
         State(pool): State<ConnectionPool>,
     ) -> Result<Json<OrderItem>, StatusCode> {
+        println!("GET: /tables/{}/order_items/{}", table_id, order_item_id);
         let conn = pool.get().await.unwrap();
         let order_item: OrderItem = conn
             .query_one(
@@ -115,6 +117,7 @@ pub fn create_order() -> Router<ConnectionPool> {
         State(pool): State<ConnectionPool>,
         Json(params): Json<OrderPostParams>,
     ) -> Result<StatusCode, StatusCode> {
+        println!("POST: /tables/{}/orders", table_id);
         let value_placeholders =
             generate_value_placeholders_for_insert_statement(params.menu_item_ids.len());
         // If there are two menu_item_ids, the query will look like:
@@ -151,6 +154,7 @@ pub fn delete_order_item() -> Router<ConnectionPool> {
         Path((table_id, order_item_id)): Path<(i32, i32)>,
         State(pool): State<ConnectionPool>,
     ) -> Result<StatusCode, StatusCode> {
+        println!("DELETE: /tables/{}/order_items/{}", table_id, order_item_id);
         let conn = pool.get().await.unwrap();
         // Check if the order item exists
         conn.query_one(
@@ -158,13 +162,16 @@ pub fn delete_order_item() -> Router<ConnectionPool> {
             &[&table_id, &order_item_id],
         )
         .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+        .map_err(|_| {
+            println!("table_order_items (id: {order_item_id}) not found");
+            StatusCode::NOT_FOUND
+        })?;
 
         let delete_statement = "DELETE FROM table_order_items WHERE table_id = $1 AND id = $2;";
         conn.execute(delete_statement, &[&table_id, &order_item_id])
             .await
             .map_err(|e| {
-                eprintln!("Failed to insert into table_order_items: {}", e);
+                eprintln!("Failed to delete table_order_items: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
         Ok(StatusCode::NO_CONTENT)

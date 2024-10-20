@@ -40,7 +40,7 @@ First, make sure that the containers are running:
 docker compose ps
 ```
 
-You'll see the following output something like this:
+You'll see something like the following output:
 ```bash
 NAME                                   IMAGE                           COMMAND                  SERVICE    CREATED          STATUS          PORTS
 restaurant_app_assignment-api-1        restaurant_app_assignment-api   "cargo watch -x run"     api        34 minutes ago   Up 34 minutes   58000/tcp, 0.0.0.0:58000->8000/tcp, [::]:58000->8000/tcp

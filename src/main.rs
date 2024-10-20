@@ -13,7 +13,7 @@ async fn main() {
     // 10 clients calling the server at the same time
     for _ in 0..10 {
         tokio::spawn(async {
-            client::mock_client_requests().await;
+            client::mock_requests().await;
         });
     }
 

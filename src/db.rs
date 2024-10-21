@@ -1,4 +1,4 @@
-use std::ops::DerefMut;
+use std::{env, ops::DerefMut};
 
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
@@ -10,9 +10,12 @@ embed_migrations!("./migrations");
 pub type ConnectionPool = Pool<PostgresConnectionManager<NoTls>>;
 
 pub async fn get_connection_pool() -> ConnectionPool {
-    // TODO: Get db info from environment variables
+    let host = env::var("DB_HOST").unwrap();
+    let user = env::var("DB_USER").unwrap();
+    let password = env::var("DB_PASSWORD").unwrap();
+    let dbname = env::var("DB_NAME").unwrap();
     let manager = PostgresConnectionManager::new_from_stringlike(
-        "host=postgres user=postgres password=postgres dbname=restaurant_app",
+        format!("host={host} user={user} password={password} dbname={dbname}"),
         NoTls,
     )
     .unwrap();

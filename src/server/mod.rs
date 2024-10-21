@@ -1,3 +1,5 @@
+use std::env;
+
 use crate::db::ConnectionPool;
 use axum::Router;
 
@@ -10,8 +12,10 @@ pub async fn run(pool: ConnectionPool) {
         .merge(handler::create_order())
         .merge(handler::delete_order_item())
         .with_state(pool);
-    // TODO: Get an address from environment variables
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
+    let host = env::var("API_HOST").unwrap();
+    let port = env::var("API_PORT").unwrap();
+    let address = format!("{host}:{port}");
+    let listener = tokio::net::TcpListener::bind(address).await.unwrap();
     println!("Listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
 }

@@ -1,6 +1,6 @@
 use crate::{
     db::ConnectionPool,
-    server::table_order_items::{self, TableOrderItemError},
+    server::table_order_items::{self, OrderItems, TableOrderItemError},
 };
 use axum::{
     extract::{Path, State},
@@ -8,15 +8,9 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use super::table_order_items::OrderItem;
-
-/// Response for get_order_items
-#[derive(Serialize)]
-pub struct OrderItems {
-    items: Vec<OrderItem>,
-}
 
 /// Request body for create_order
 #[derive(Deserialize)]
@@ -31,24 +25,10 @@ pub fn get_order_items() -> Router<ConnectionPool> {
         State(pool): State<ConnectionPool>,
     ) -> Result<Json<OrderItems>, StatusCode> {
         println!("GET: /tables/{}/order_items", table_id);
-        let conn = pool.get().await.unwrap();
-        let rows = conn
-            .query(
-                r#"
-                SELECT toi.*, t.table_number, mi.name menu_item_name FROM table_order_items toi
-                INNER JOIN menu_items mi ON toi.menu_item_id = mi.id
-                INNER JOIN tables t ON toi.table_id = t.id
-                WHERE table_id = $1;
-            "#,
-                &[&table_id],
-            )
+        let order_items = table_order_items::get_order_items(&pool, table_id)
             .await
-            .map_err(|e| {
-                eprintln!("Failed to query table_order_items: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-        let items = rows.iter().map(|row| row.into()).collect();
-        Ok(Json(OrderItems { items }))
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        Ok(Json(order_items))
     }
 
     Router::<ConnectionPool>::new().route("/tables/:table_id/order_items", get(handler))

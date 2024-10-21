@@ -15,6 +15,12 @@ pub struct OrderItem {
     prep_time_minutes: i32,
 }
 
+/// Response for get_order_items
+#[derive(Serialize)]
+pub struct OrderItems {
+    items: Vec<OrderItem>,
+}
+
 impl From<&Row> for OrderItem {
     fn from(row: &Row) -> Self {
         let id: i32 = row.get("id");
@@ -35,6 +41,33 @@ pub enum TableOrderItemError {
     PoolError,
     QueryError,
     NotFoundError,
+}
+
+pub async fn get_order_items(
+    pool: &ConnectionPool,
+    table_id: i32,
+) -> Result<OrderItems, TableOrderItemError> {
+    let conn = pool.get().await.map_err(|e| {
+        eprintln!("Failed to get connection from pool: {}", e);
+        TableOrderItemError::PoolError
+    })?;
+    let rows = conn
+        .query(
+            r#"
+                SELECT toi.*, t.table_number, mi.name menu_item_name FROM table_order_items toi
+                INNER JOIN menu_items mi ON toi.menu_item_id = mi.id
+                INNER JOIN tables t ON toi.table_id = t.id
+                WHERE table_id = $1;
+            "#,
+            &[&table_id],
+        )
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to query table_order_items: {}", e);
+            TableOrderItemError::QueryError
+        })?;
+    let items = rows.iter().map(|row| row.into()).collect();
+    Ok(OrderItems { items })
 }
 
 pub async fn get_order_item(
@@ -163,6 +196,19 @@ mod tests {
         assert_eq!(order_item.table_number, 1);
         assert_eq!(order_item.menu_item_name, "Big Mac");
         assert!(order_item.prep_time_minutes >= 5 && order_item.prep_time_minutes <= 15);
+    }
+
+    #[tokio::test]
+    async fn test_get_order_items() {
+        let container = Postgres::default().start().await.unwrap();
+        let pool = set_up_test_db(&container).await;
+        let menu_item_ids = vec![1, 2, 3];
+        let table_id = 1;
+        insert_table_order_items(&pool, menu_item_ids, table_id)
+            .await
+            .unwrap();
+        let OrderItems { items } = get_order_items(&pool, table_id).await.unwrap();
+        assert_eq!(items.len(), 3);
     }
 
     #[tokio::test]

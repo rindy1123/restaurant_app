@@ -93,3 +93,24 @@ fn table_order_item_error_to_status_code(e: TableOrderItemError) -> StatusCode {
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_table_order_item_error_to_status_code() {
+        assert_eq!(
+            table_order_item_error_to_status_code(TableOrderItemError::NotFoundError),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            table_order_item_error_to_status_code(TableOrderItemError::PoolError),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+        assert_eq!(
+            table_order_item_error_to_status_code(TableOrderItemError::QueryError),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+    }
+}

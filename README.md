@@ -52,7 +52,3 @@ Then, run the following command to run the tests:
 ```bash
 make test
 ```
-
-## Caveats
-
-I left a few TODO comments which I consider too much to implement for this assignment. These include mocking the database for testing and fetching some data from environment variables which is currently hard coded. 

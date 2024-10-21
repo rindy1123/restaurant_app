@@ -1,11 +1,10 @@
-use crate::db::ConnectionPool;
+use crate::{db::ConnectionPool, server::table_order_items::insert_table_order_items};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     routing::{delete, get, post},
     Json, Router,
 };
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use tokio_postgres::Row;
@@ -45,8 +44,6 @@ impl From<&Row> for OrderItem {
         }
     }
 }
-
-// TODO: Mock db connections for tests
 
 /// Handles GET requests to `/tables/:table_id/order_items` and returns a list of order items for the table
 pub fn get_order_items() -> Router<ConnectionPool> {
@@ -118,30 +115,9 @@ pub fn create_order() -> Router<ConnectionPool> {
         Json(params): Json<OrderPostParams>,
     ) -> Result<StatusCode, StatusCode> {
         println!("POST: /tables/{}/orders", table_id);
-        let value_placeholders =
-            generate_value_placeholders_for_insert_statement(params.menu_item_ids.len());
-        // If there are two menu_item_ids, the query will look like:
-        // INSERT INTO table_order_items (table_id, menu_item_id, prep_time_minutes) VALUES ($1, $2, $3), ($4, $5, $6);
-        let insert_statement = format!(
-            r#"
-            INSERT INTO table_order_items (table_id, menu_item_id, prep_time_minutes) VALUES
-            {};
-        "#,
-            value_placeholders
-        );
-        let prep_time_minutes = get_random_prep_time_minutes();
-        let values = params
-            .menu_item_ids
-            .iter()
-            .flat_map(|id| vec![&table_id, id, &prep_time_minutes])
-            .collect::<Vec<&i32>>();
-        let conn = pool.get().await.unwrap();
-        conn.execute_raw(&insert_statement, values)
+        insert_table_order_items(&pool, params.menu_item_ids, table_id)
             .await
-            .map_err(|e| {
-                eprintln!("Failed to insert into table_order_items: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         Ok(StatusCode::CREATED)
     }
 
@@ -181,38 +157,4 @@ pub fn delete_order_item() -> Router<ConnectionPool> {
         "/tables/:table_id/order_items/:order_item_id",
         delete(handler),
     )
-}
-
-/// Returns a random prep time between 5 and 15 minutes
-fn get_random_prep_time_minutes() -> i32 {
-    let mut rng = rand::thread_rng();
-    rng.gen_range(5..=15)
-}
-
-fn generate_value_placeholders_for_insert_statement(num_of_items: usize) -> String {
-    (0..num_of_items)
-        .map(|i| format!("(${}, ${}, ${})", i * 3 + 1, i * 3 + 2, i * 3 + 3))
-        .into_iter()
-        .collect::<Vec<String>>()
-        .join(", ")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_get_random_prep_time_minutes() {
-        let prep_time = get_random_prep_time_minutes();
-        assert!(prep_time >= 5 && prep_time <= 15);
-    }
-
-    #[test]
-    fn test_generate_value_placeholders_for_insert_statement() {
-        let value_placeholders = generate_value_placeholders_for_insert_statement(3);
-        assert_eq!(
-            value_placeholders,
-            "($1, $2, $3), ($4, $5, $6), ($7, $8, $9)"
-        );
-    }
 }

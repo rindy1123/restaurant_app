@@ -4,6 +4,7 @@ use crate::db::ConnectionPool;
 use axum::Router;
 
 mod handler;
+mod table_order_items;
 
 pub async fn run(pool: ConnectionPool) {
     let app = Router::new()

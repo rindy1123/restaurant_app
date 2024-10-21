@@ -14,3 +14,5 @@ bb8 = "^0.8.5"
 bb8-postgres = "^0.8.1"
 rand = "^0.8.5"
 reqwest = { version = "^0.12", features = ["json"] }
+testcontainers = "0.23.1"
+testcontainers-modules = { version = "0.11.3", features = ["postgres"] }

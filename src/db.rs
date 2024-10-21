@@ -28,3 +28,30 @@ pub async fn run_migrations(pool: &ConnectionPool) {
     let client = conn.deref_mut();
     migrations::runner().run_async(client).await.unwrap();
 }
+
+#[cfg(test)]
+pub mod test_utils {
+    use testcontainers::{runners::AsyncRunner, ContainerAsync};
+    use testcontainers_modules::postgres::Postgres;
+
+    use super::*;
+
+    // NOTE: If you create a container inside this function, `drop` trait will kill the container
+    // and you won't be able to connect to the database.
+    pub async fn set_up_test_db(container: &ContainerAsync<Postgres>) -> ConnectionPool {
+        let port = container.get_host_port_ipv4(5432).await.unwrap();
+
+        let manager = PostgresConnectionManager::new_from_stringlike(
+            format!("host=localhost port={port} user=postgres password=postgres dbname=postgres"),
+            NoTls,
+        )
+        .unwrap();
+        let pool = Pool::builder().build(manager).await.unwrap();
+        run_migrations(&pool).await;
+        pool
+    }
+
+    pub async fn create_db_container() -> ContainerAsync<Postgres> {
+        Postgres::default().start().await.unwrap()
+    }
+}

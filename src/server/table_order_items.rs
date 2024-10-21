@@ -176,32 +176,13 @@ fn generate_value_placeholders_for_insert_statement(num_of_items: usize) -> Stri
 
 #[cfg(test)]
 mod tests {
-    use bb8::Pool;
-    use bb8_postgres::PostgresConnectionManager;
-    use testcontainers::{runners::AsyncRunner, ContainerAsync};
-    use testcontainers_modules::postgres::Postgres;
-    use tokio_postgres::NoTls;
-
-    use crate::db::{self, ConnectionPool};
+    use crate::db::test_utils::{create_db_container, set_up_test_db};
 
     use super::*;
 
-    async fn set_up_test_db(container: &ContainerAsync<Postgres>) -> ConnectionPool {
-        let port = container.get_host_port_ipv4(5432).await.unwrap();
-
-        let manager = PostgresConnectionManager::new_from_stringlike(
-            format!("host=localhost port={port} user=postgres password=postgres dbname=postgres"),
-            NoTls,
-        )
-        .unwrap();
-        let pool = Pool::builder().build(manager).await.unwrap();
-        db::run_migrations(&pool).await;
-        pool
-    }
-
     #[tokio::test]
     async fn test_insert_table_order_items() {
-        let container = Postgres::default().start().await.unwrap();
+        let container = create_db_container().await;
         let pool = set_up_test_db(&container).await;
         let menu_item_ids = vec![1, 2, 3];
         let table_id = 1;
@@ -212,7 +193,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_order_item() {
-        let container = Postgres::default().start().await.unwrap();
+        let container = create_db_container().await;
         let pool = set_up_test_db(&container).await;
         let menu_item_ids = vec![1];
         let table_id = 1;
@@ -228,7 +209,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_order_items() {
-        let container = Postgres::default().start().await.unwrap();
+        let container = create_db_container().await;
         let pool = set_up_test_db(&container).await;
         let menu_item_ids = vec![1, 2, 3];
         let table_id = 1;
@@ -241,7 +222,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_order_item_not_found() {
-        let container = Postgres::default().start().await.unwrap();
+        let container = create_db_container().await;
         let pool = set_up_test_db(&container).await;
         let table_id = 1;
         let result = get_order_item(&pool, table_id, 1).await.err().unwrap();
@@ -251,7 +232,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_order_item() {
-        let container = Postgres::default().start().await.unwrap();
+        let container = create_db_container().await;
         let pool = set_up_test_db(&container).await;
         let menu_item_ids = vec![1];
         let table_id = 1;
@@ -265,7 +246,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_order_item_not_found() {
-        let container = Postgres::default().start().await.unwrap();
+        let container = create_db_container().await;
         let pool = set_up_test_db(&container).await;
         let table_id = 1;
         let result = delete_order_item(&pool, table_id, 1).await.err().unwrap();

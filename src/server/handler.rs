@@ -1,4 +1,7 @@
-use crate::{db::ConnectionPool, server::table_order_items::insert_table_order_items};
+use crate::{
+    db::ConnectionPool,
+    server::table_order_items::{self, TableOrderItemError},
+};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -6,17 +9,8 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use std::borrow::Borrow;
-use tokio_postgres::Row;
 
-/// Response for get_order_item
-#[derive(Serialize)]
-pub struct OrderItem {
-    id: i32,
-    table_number: i32,
-    menu_item_name: String,
-    prep_time_minutes: i32,
-}
+use super::table_order_items::OrderItem;
 
 /// Response for get_order_items
 #[derive(Serialize)]
@@ -28,21 +22,6 @@ pub struct OrderItems {
 #[derive(Deserialize)]
 pub struct OrderPostParams {
     menu_item_ids: Vec<i32>,
-}
-
-impl From<&Row> for OrderItem {
-    fn from(row: &Row) -> Self {
-        let id: i32 = row.get("id");
-        let table_number: i32 = row.get("table_number");
-        let menu_item_name: String = row.get("menu_item_name");
-        let prep_time_minutes: i32 = row.get("prep_time_minutes");
-        OrderItem {
-            id,
-            table_number,
-            menu_item_name,
-            prep_time_minutes,
-        }
-    }
 }
 
 /// Handles GET requests to `/tables/:table_id/order_items` and returns a list of order items for the table
@@ -82,24 +61,12 @@ pub fn get_order_item() -> Router<ConnectionPool> {
         State(pool): State<ConnectionPool>,
     ) -> Result<Json<OrderItem>, StatusCode> {
         println!("GET: /tables/{}/order_items/{}", table_id, order_item_id);
-        let conn = pool.get().await.unwrap();
-        let order_item: OrderItem = conn
-            .query_one(
-                r#"
-                SELECT toi.*, t.table_number, mi.name menu_item_name FROM table_order_items toi
-                INNER JOIN menu_items mi ON toi.menu_item_id = mi.id
-                INNER JOIN tables t ON toi.table_id = t.id
-                WHERE table_id = $1 AND toi.id = $2;
-            "#,
-                &[&table_id, &order_item_id],
-            )
+        let order_item = table_order_items::get_order_item(&pool, table_id, order_item_id)
             .await
-            .map_err(|e| {
-                eprintln!("Failed to query table_order_items: {}", e);
-                StatusCode::NOT_FOUND
-            })?
-            .borrow()
-            .into();
+            .map_err(|e| match e {
+                TableOrderItemError::NotFoundError => StatusCode::NOT_FOUND,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            })?;
         Ok(Json(order_item))
     }
 
@@ -115,7 +82,7 @@ pub fn create_order() -> Router<ConnectionPool> {
         Json(params): Json<OrderPostParams>,
     ) -> Result<StatusCode, StatusCode> {
         println!("POST: /tables/{}/orders", table_id);
-        insert_table_order_items(&pool, params.menu_item_ids, table_id)
+        table_order_items::insert_table_order_items(&pool, params.menu_item_ids, table_id)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         Ok(StatusCode::CREATED)

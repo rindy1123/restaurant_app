@@ -27,7 +27,7 @@ pub fn get_order_items() -> Router<ConnectionPool> {
         println!("GET: /tables/{}/order_items", table_id);
         let order_items = table_order_items::get_order_items(&pool, table_id)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(table_order_item_error_to_status_code)?;
         Ok(Json(order_items))
     }
 
@@ -43,10 +43,7 @@ pub fn get_order_item() -> Router<ConnectionPool> {
         println!("GET: /tables/{}/order_items/{}", table_id, order_item_id);
         let order_item = table_order_items::get_order_item(&pool, table_id, order_item_id)
             .await
-            .map_err(|e| match e {
-                TableOrderItemError::NotFoundError => StatusCode::NOT_FOUND,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
-            })?;
+            .map_err(table_order_item_error_to_status_code)?;
         Ok(Json(order_item))
     }
 
@@ -64,7 +61,7 @@ pub fn create_order() -> Router<ConnectionPool> {
         println!("POST: /tables/{}/orders", table_id);
         table_order_items::insert_table_order_items(&pool, params.menu_item_ids, table_id)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(table_order_item_error_to_status_code)?;
         Ok(StatusCode::CREATED)
     }
 
@@ -80,10 +77,7 @@ pub fn delete_order_item() -> Router<ConnectionPool> {
         println!("DELETE: /tables/{}/order_items/{}", table_id, order_item_id);
         table_order_items::delete_order_item(&pool, table_id, order_item_id)
             .await
-            .map_err(|e| match e {
-                TableOrderItemError::NotFoundError => StatusCode::NOT_FOUND,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
-            })?;
+            .map_err(table_order_item_error_to_status_code)?;
         Ok(StatusCode::NO_CONTENT)
     }
 
@@ -91,4 +85,11 @@ pub fn delete_order_item() -> Router<ConnectionPool> {
         "/tables/:table_id/order_items/:order_item_id",
         delete(handler),
     )
+}
+
+fn table_order_item_error_to_status_code(e: TableOrderItemError) -> StatusCode {
+    match e {
+        table_order_items::TableOrderItemError::NotFoundError => StatusCode::NOT_FOUND,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    }
 }

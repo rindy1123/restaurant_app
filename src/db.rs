@@ -51,6 +51,7 @@ pub mod test_utils {
         pool
     }
 
+    // NOTE: Some tests which requires a database connection use a container to build an independent database instance for testing.
     pub async fn create_db_container() -> ContainerAsync<Postgres> {
         Postgres::default().start().await.unwrap()
     }

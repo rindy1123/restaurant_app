@@ -89,7 +89,7 @@ pub fn delete_order_item() -> Router<ConnectionPool> {
 
 fn table_order_item_error_to_status_code(e: TableOrderItemError) -> StatusCode {
     match e {
-        table_order_items::TableOrderItemError::NotFoundError => StatusCode::NOT_FOUND,
+        table_order_items::TableOrderItemError::NotFound => StatusCode::NOT_FOUND,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
@@ -101,15 +101,15 @@ mod tests {
     #[test]
     fn test_table_order_item_error_to_status_code() {
         assert_eq!(
-            table_order_item_error_to_status_code(TableOrderItemError::NotFoundError),
+            table_order_item_error_to_status_code(TableOrderItemError::NotFound),
             StatusCode::NOT_FOUND
         );
         assert_eq!(
-            table_order_item_error_to_status_code(TableOrderItemError::PoolError),
+            table_order_item_error_to_status_code(TableOrderItemError::Pool),
             StatusCode::INTERNAL_SERVER_ERROR
         );
         assert_eq!(
-            table_order_item_error_to_status_code(TableOrderItemError::QueryError),
+            table_order_item_error_to_status_code(TableOrderItemError::Query),
             StatusCode::INTERNAL_SERVER_ERROR
         );
     }

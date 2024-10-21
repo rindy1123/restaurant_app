@@ -36,9 +36,9 @@ impl From<&Row> for OrderItem {
 
 #[derive(Debug, PartialEq)]
 pub enum TableOrderItemError {
-    PoolError,
-    QueryError,
-    NotFoundError,
+    Pool,
+    Query,
+    NotFound,
 }
 
 pub async fn get_order_items(
@@ -47,7 +47,7 @@ pub async fn get_order_items(
 ) -> Result<OrderItems, TableOrderItemError> {
     let conn = pool.get().await.map_err(|e| {
         eprintln!("Failed to get connection from pool: {}", e);
-        TableOrderItemError::PoolError
+        TableOrderItemError::Pool
     })?;
     let rows = conn
         .query(
@@ -62,7 +62,7 @@ pub async fn get_order_items(
         .await
         .map_err(|e| {
             eprintln!("Failed to query table_order_items: {}", e);
-            TableOrderItemError::QueryError
+            TableOrderItemError::Query
         })?;
     let items = rows.iter().map(|row| row.into()).collect();
     Ok(OrderItems { items })
@@ -75,7 +75,7 @@ pub async fn get_order_item(
 ) -> Result<OrderItem, TableOrderItemError> {
     let conn = pool.get().await.map_err(|e| {
         eprintln!("Failed to get connection from pool: {}", e);
-        TableOrderItemError::PoolError
+        TableOrderItemError::Pool
     })?;
     let order_item: OrderItem = conn
         .query_one(
@@ -90,7 +90,7 @@ pub async fn get_order_item(
         .await
         .map_err(|_| {
             println!("table_order_items (id: {order_item_id}) not found");
-            TableOrderItemError::NotFoundError
+            TableOrderItemError::NotFound
         })?
         .borrow()
         .into();
@@ -104,7 +104,7 @@ pub async fn insert_table_order_items(
 ) -> Result<(), TableOrderItemError> {
     let conn = pool.get().await.map_err(|e| {
         eprintln!("Failed to get connection from pool: {}", e);
-        TableOrderItemError::PoolError
+        TableOrderItemError::Pool
     })?;
     let value_placeholders = generate_value_placeholders_for_insert_statement(menu_item_ids.len());
     // If there are two menu_item_ids, the query will look like:
@@ -125,7 +125,7 @@ pub async fn insert_table_order_items(
         .await
         .map_err(|e| {
             eprintln!("Failed to insert table_order_items: {}", e);
-            TableOrderItemError::QueryError
+            TableOrderItemError::Query
         })?;
     Ok(())
 }
@@ -137,7 +137,7 @@ pub async fn delete_order_item(
 ) -> Result<(), TableOrderItemError> {
     let conn = pool.get().await.map_err(|e| {
         eprintln!("Failed to get connection from pool: {}", e);
-        TableOrderItemError::PoolError
+        TableOrderItemError::Pool
     })?;
     // Check if the order item exists
     conn.query_one(
@@ -147,7 +147,7 @@ pub async fn delete_order_item(
     .await
     .map_err(|_| {
         println!("table_order_items (id: {order_item_id}) not found");
-        TableOrderItemError::NotFoundError
+        TableOrderItemError::NotFound
     })?;
 
     let delete_statement = "DELETE FROM table_order_items WHERE table_id = $1 AND id = $2;";
@@ -155,7 +155,7 @@ pub async fn delete_order_item(
         .await
         .map_err(|e| {
             eprintln!("Failed to delete table_order_items: {}", e);
-            TableOrderItemError::QueryError
+            TableOrderItemError::Query
         })?;
     Ok(())
 }
@@ -169,7 +169,6 @@ fn get_random_prep_time_minutes() -> i32 {
 fn generate_value_placeholders_for_insert_statement(num_of_items: usize) -> String {
     (0..num_of_items)
         .map(|i| format!("(${}, ${}, ${})", i * 3 + 1, i * 3 + 2, i * 3 + 3))
-        .into_iter()
         .collect::<Vec<String>>()
         .join(", ")
 }
@@ -226,7 +225,7 @@ mod tests {
         let pool = set_up_test_db(&container).await;
         let table_id = 1;
         let result = get_order_item(&pool, table_id, 1).await.err().unwrap();
-        let expected = TableOrderItemError::NotFoundError;
+        let expected = TableOrderItemError::NotFound;
         assert_eq!(result, expected);
     }
 
@@ -250,14 +249,14 @@ mod tests {
         let pool = set_up_test_db(&container).await;
         let table_id = 1;
         let result = delete_order_item(&pool, table_id, 1).await.err().unwrap();
-        let expected = TableOrderItemError::NotFoundError;
+        let expected = TableOrderItemError::NotFound;
         assert_eq!(result, expected);
     }
 
     #[test]
     fn test_get_random_prep_time_minutes() {
         let prep_time = get_random_prep_time_minutes();
-        assert!(prep_time >= 5 && prep_time <= 15);
+        assert!((5..=15).contains(&prep_time));
     }
 
     #[test]

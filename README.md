@@ -34,21 +34,13 @@ The app will be running on `http://localhost:58000`.
 
 ### Testing
 
-First, make sure that the containers are running:
+First, make sure that `cargo` is installed by running:
 
 ```bash
-docker compose ps
-```
-
-You'll see something like the following output:
-```bash
-NAME                                   IMAGE                           COMMAND                  SERVICE    CREATED          STATUS          PORTS
-restaurant_app_assignment-api-1        restaurant_app_assignment-api   "cargo watch -x run"     api        34 minutes ago   Up 34 minutes   58000/tcp, 0.0.0.0:58000->8000/tcp, [::]:58000->8000/tcp
-restaurant_app_assignment-postgres-1   postgres:16-alpine              "docker-entrypoint.s…"   postgres   34 minutes ago   Up 34 minutes   0.0.0.0:55432->5432/tcp, [::]:55432->5432/tcp
+cargo -V
 ```
 
 Then, run the following command to run the tests:
-
 ```bash
-make test
+cargo test
 ```

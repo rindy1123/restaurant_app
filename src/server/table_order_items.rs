@@ -88,8 +88,8 @@ pub async fn get_order_item(
             &[&table_id, &order_item_id],
         )
         .await
-        .map_err(|e| {
-            eprintln!("Failed to query table_order_items: {}", e);
+        .map_err(|_| {
+            println!("table_order_items (id: {order_item_id}) not found");
             TableOrderItemError::NotFoundError
         })?
         .borrow()

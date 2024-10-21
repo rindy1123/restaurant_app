@@ -6,7 +6,6 @@ use tokio_postgres::Row;
 
 use crate::db::ConnectionPool;
 
-/// Response for get_order_item
 #[derive(Serialize)]
 pub struct OrderItem {
     id: i32,
@@ -15,7 +14,6 @@ pub struct OrderItem {
     prep_time_minutes: i32,
 }
 
-/// Response for get_order_items
 #[derive(Serialize)]
 pub struct OrderItems {
     items: Vec<OrderItem>,
@@ -132,6 +130,36 @@ pub async fn insert_table_order_items(
     Ok(())
 }
 
+pub async fn delete_order_item(
+    pool: &ConnectionPool,
+    table_id: i32,
+    order_item_id: i32,
+) -> Result<(), TableOrderItemError> {
+    let conn = pool.get().await.map_err(|e| {
+        eprintln!("Failed to get connection from pool: {}", e);
+        TableOrderItemError::PoolError
+    })?;
+    // Check if the order item exists
+    conn.query_one(
+        "SELECT 1 FROM table_order_items WHERE table_id = $1 AND id = $2",
+        &[&table_id, &order_item_id],
+    )
+    .await
+    .map_err(|_| {
+        println!("table_order_items (id: {order_item_id}) not found");
+        TableOrderItemError::NotFoundError
+    })?;
+
+    let delete_statement = "DELETE FROM table_order_items WHERE table_id = $1 AND id = $2;";
+    conn.execute(delete_statement, &[&table_id, &order_item_id])
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to delete table_order_items: {}", e);
+            TableOrderItemError::QueryError
+        })?;
+    Ok(())
+}
+
 /// Returns a random prep time between 5 and 15 minutes
 fn get_random_prep_time_minutes() -> i32 {
     let mut rng = rand::thread_rng();
@@ -217,6 +245,30 @@ mod tests {
         let pool = set_up_test_db(&container).await;
         let table_id = 1;
         let result = get_order_item(&pool, table_id, 1).await.err().unwrap();
+        let expected = TableOrderItemError::NotFoundError;
+        assert_eq!(result, expected);
+    }
+
+    #[tokio::test]
+    async fn test_delete_order_item() {
+        let container = Postgres::default().start().await.unwrap();
+        let pool = set_up_test_db(&container).await;
+        let menu_item_ids = vec![1];
+        let table_id = 1;
+        insert_table_order_items(&pool, menu_item_ids, table_id)
+            .await
+            .unwrap();
+        delete_order_item(&pool, table_id, 1).await.unwrap();
+        let OrderItems { items } = get_order_items(&pool, table_id).await.unwrap();
+        assert_eq!(items.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_delete_order_item_not_found() {
+        let container = Postgres::default().start().await.unwrap();
+        let pool = set_up_test_db(&container).await;
+        let table_id = 1;
+        let result = delete_order_item(&pool, table_id, 1).await.err().unwrap();
         let expected = TableOrderItemError::NotFoundError;
         assert_eq!(result, expected);
     }

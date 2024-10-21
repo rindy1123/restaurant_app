@@ -78,24 +78,11 @@ pub fn delete_order_item() -> Router<ConnectionPool> {
         State(pool): State<ConnectionPool>,
     ) -> Result<StatusCode, StatusCode> {
         println!("DELETE: /tables/{}/order_items/{}", table_id, order_item_id);
-        let conn = pool.get().await.unwrap();
-        // Check if the order item exists
-        conn.query_one(
-            "SELECT 1 FROM table_order_items WHERE table_id = $1 AND id = $2",
-            &[&table_id, &order_item_id],
-        )
-        .await
-        .map_err(|_| {
-            println!("table_order_items (id: {order_item_id}) not found");
-            StatusCode::NOT_FOUND
-        })?;
-
-        let delete_statement = "DELETE FROM table_order_items WHERE table_id = $1 AND id = $2;";
-        conn.execute(delete_statement, &[&table_id, &order_item_id])
+        table_order_items::delete_order_item(&pool, table_id, order_item_id)
             .await
-            .map_err(|e| {
-                eprintln!("Failed to delete table_order_items: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
+            .map_err(|e| match e {
+                TableOrderItemError::NotFoundError => StatusCode::NOT_FOUND,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
             })?;
         Ok(StatusCode::NO_CONTENT)
     }
